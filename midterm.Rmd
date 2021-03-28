@@ -7,6 +7,7 @@ output: html_document
 
 ```{r}
 library(tidyverse)
+library(patchwork)
 library(ISLR)
 library(caret)
 library(glmnet)
@@ -19,45 +20,77 @@ library(AppliedPredictiveModeling)
 
 ```{r}
 # Load and tidy
-stroke = read_csv("healthcare-dataset-stroke-data.csv") %>% 
+stroke_df = read_csv("healthcare-dataset-stroke-data.csv") %>% 
   dplyr::select(gender:stroke) %>% 
   filter(!bmi == "N/A") %>% 
   na.omit() %>% 
   janitor::clean_names() %>% 
   mutate(
-    gender = case_when(gender == "Male" ~ "0",
-                       gender == "Female" ~ "1",
-                       gender == "Other" ~ "2"),
-    ever_married = case_when(ever_married == "Yes" ~ "1",
-                             ever_married == "No" ~ "0"),
-    work_type = case_when(work_type == "children" ~ "0",
-                          work_type == "Govt_jov" ~ "1",
-                          work_type == "Never_worked" ~ "2",
-                          work_type == "Private" ~ "3",
-                          work_type == "Self-employed" ~ "4"),
-    residence_type = case_when(residence_type == "Rural" ~ "0",
-                               residence_type == "Urban" ~ "1"),
-    smoking_status = case_when(smoking_status == "formerly smoked" ~ "0",
-                               smoking_status == "never smoked" ~ "1",
-                               smoking_status == "smokes" ~ "2",
-                               smoking_status == "Unknown" ~ "3")
-  )
+    gender = case_when(gender == "Male" ~ 0,
+                       gender == "Female" ~ 1,
+                       gender == "Other" ~ 2),
+    ever_married = case_when(ever_married == "Yes" ~ 1,
+                             ever_married == "No" ~ 0),
+    work_type = case_when(work_type == "children" ~ 0,
+                          work_type == "Govt_job" ~ 1,
+                          work_type == "Never_worked" ~ 2,
+                          work_type == "Private" ~ 3,
+                          work_type == "Self-employed" ~ 4),
+    residence_type = case_when(residence_type == "Rural" ~ 0,
+                               residence_type == "Urban" ~ 1),
+    smoking_status = case_when(smoking_status == "formerly smoked" ~ 0,
+                               smoking_status == "never smoked" ~ 1,
+                               smoking_status == "smokes" ~ 2,
+                               smoking_status == "Unknown" ~ 3)
+  ) %>% 
+  mutate(bmi = as.numeric(bmi),
+         stroke = as.factor(stroke))
 
-summary(stroke)
+summary(stroke_df)
 ```
 
+# EDA
 ```{r}
-transparentTheme(trans = .4)
-featurePlot(x = stroke[, 1:10], 
-            y = stroke$stroke,
+pairs(stroke_df) # pairs plot
+
+featurePlot(x = stroke_df[, 1:10], 
+            y = stroke_df$stroke,
             scales = list(x = list(relation = "free"), 
                           y = list(relation = "free")),
-            plot = "density", pch = "|", 
-            auto.key = list(columns = 2))
+            plot = "density",
+            pch = "|", 
+            auto.key = list(columns = 2)) # density plot
 
+stroke_plot = stroke_df %>% 
+  filter(stroke == 1) %>% 
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) + 
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram()
+
+nonstroke_plot = stroke_df %>% 
+  filter(stroke == 0) %>% 
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) + 
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram()
+
+stroke_plot + nonstroke_plot
 ```
 
+# Models
 
+```{r}
+# split train vs. test
+stroke_df = stroke_df %>% 
+  mutate(id = 1:nrow(stroke_df))
+set.seed(1)
+sample_size = floor(0.8 * nrow(stroke_df))
+train = sample_n(stroke_df, size = sample_size)
+test = anti_join(stroke_df, train, by = "id")
+```
 
 
 
