@@ -29,8 +29,8 @@ stroke_df = read_csv("healthcare-dataset-stroke-data.csv") %>%
     gender = case_when(gender == "Male" ~ 0,
                        gender == "Female" ~ 1,
                        gender == "Other" ~ 2),
-    ever_married = case_when(ever_married == "Yes" ~ 1,
-                             ever_married == "No" ~ 0),
+    ever_married = case_when(ever_married == "No" ~ 0,
+                             ever_married == "Yes" ~ 1),
     work_type = case_when(work_type == "children" ~ 0,
                           work_type == "Govt_job" ~ 1,
                           work_type == "Never_worked" ~ 2,
@@ -85,11 +85,63 @@ stroke_plot + nonstroke_plot
 ```{r}
 # split train vs. test
 stroke_df = stroke_df %>% 
+  mutate(gender = as.factor(gender),
+         hypertension = as.factor(hypertension),
+         heart_disease = as.factor(heart_disease),
+         ever_married = as.factor(ever_married),
+         work_type = as.factor(work_type),
+         residence_type = as.factor(residence_type),
+         smoking_status = as.factor(smoking_status),
+         stroke = as.factor(stroke))
+
+stroke_df = stroke_df %>% 
   mutate(id = 1:nrow(stroke_df))
-set.seed(1)
+set.seed(2)
 sample_size = floor(0.8 * nrow(stroke_df))
 train = sample_n(stroke_df, size = sample_size)
-test = anti_join(stroke_df, train, by = "id")
+test = anti_join(stroke_df, train, by = "id") %>% dplyr::select(gender:stroke)
+train = train %>% dplyr::select(gender:stroke)
+stroke_df = stroke_df %>% dplyr::select(gender:stroke)
+```
+
+
+## GLM
+```{r}
+glm_fit = glm(stroke ~., data = train, family = binomial)
+summary(glm_fit)
+
+# Confusion Matrix
+prob = predict(glm_fit, newdata = test, type = "response")
+pred = rep("0", length(prob))
+pred[prob > 0.5] = "1"
+confusionMatrix(data = as.factor(pred), reference = test$stroke, positive = "1")
+
+# ROC
+glm_prob2 = predict(glm_fit, newdata = test, type = "response")
+roc = roc(test$stroke, glm_prob2)
+plot(roc, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc), col = 4, add = TRUE)
+```
+
+## LDA
+
+```{r}
+lda_fit = lda(stroke ~., data = train)
+lda_pred = predict(lda_fit, newdata = test)
+roc_lda = roc(test$stroke, lda_pred$posterior[,2], levels = c("0", "1"))
+plot(roc_lda, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc_lda), col = 4, add = TRUE)
+```
+
+## QDA
+
+!!! fix this part
+```{r}
+qda_fit = qda(stroke ~., data = train)
+qda_pred = predict(qda_fit, newdata = test)
+roc_qda = roc(test$stroke, qda_pred$posterior[,2], levels = c("0", "1"))
+plot(roc_qda, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc_qda), col = 4, add = TRUE)
 ```
 
 
