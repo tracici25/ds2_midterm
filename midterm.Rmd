@@ -8,12 +8,11 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(patchwork)
+library(ggcorrplot)
 library(ISLR)
 library(caret)
-library(glmnet)
+library(randomForest)
 library(MASS)
-library(e1071)
-library(mlbench)
 library(pROC)
 library(AppliedPredictiveModeling)
 ```
@@ -51,6 +50,14 @@ summary(stroke_df)
 
 # EDA
 ```{r}
+# Correlation Matrix
+model.matrix(~0+., data = stroke_df) %>% 
+  cor(use = "pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type = "lower", 
+             lab = TRUE, lab_size = 2, 
+             title = "Correlation of parameters of interest")
+
+# scatter plots between variables
 pairs(stroke_df) # pairs plot
 
 featurePlot(x = stroke_df[, 1:10], 
@@ -59,7 +66,8 @@ featurePlot(x = stroke_df[, 1:10],
                           y = list(relation = "free")),
             plot = "density",
             pch = "|", 
-            auto.key = list(columns = 2)) # density plot
+            auto.key = list(columns = 2),
+            font = 2) # density plot
 
 stroke_plot = stroke_df %>% 
   filter(stroke == 1) %>% 
@@ -92,10 +100,9 @@ stroke_df = stroke_df %>%
          work_type = as.factor(work_type),
          residence_type = as.factor(residence_type),
          smoking_status = as.factor(smoking_status),
-         stroke = as.factor(stroke))
-
-stroke_df = stroke_df %>% 
+         stroke = as.factor(stroke)) %>% 
   mutate(id = 1:nrow(stroke_df))
+
 set.seed(2)
 sample_size = floor(0.8 * nrow(stroke_df))
 train = sample_n(stroke_df, size = sample_size)
@@ -110,8 +117,13 @@ stroke_df = stroke_df %>% dplyr::select(gender:stroke)
 glm_fit = glm(stroke ~., data = train, family = binomial)
 summary(glm_fit)
 
+step_glm_fit = stepAIC(glm_fit, direction = "both", trace = FALSE)
+summary(step_glm_fit)
+
+anova(glm)
+
 # Confusion Matrix
-prob = predict(glm_fit, newdata = test, type = "response")
+prob = predict(step_glm_fit, newdata = test, type = "response")
 pred = rep("0", length(prob))
 pred[prob > 0.5] = "1"
 confusionMatrix(data = as.factor(pred), reference = test$stroke, positive = "1")
@@ -126,7 +138,7 @@ plot(smooth(roc), col = 4, add = TRUE)
 ## LDA
 
 ```{r}
-lda_fit = lda(stroke ~., data = train)
+lda_fit = lda(stroke ~ age + hypertension + heart_disease + avg_glucose_level, data = train)
 lda_pred = predict(lda_fit, newdata = test)
 roc_lda = roc(test$stroke, lda_pred$posterior[,2], levels = c("0", "1"))
 plot(roc_lda, legacy.axes = TRUE, print.auc = TRUE)
@@ -135,14 +147,43 @@ plot(smooth(roc_lda), col = 4, add = TRUE)
 
 ## QDA
 
-!!! fix this part
 ```{r}
-qda_fit = qda(stroke ~., data = train)
+qda_fit = qda(stroke ~ age + hypertension + heart_disease + avg_glucose_level, data = train)
 qda_pred = predict(qda_fit, newdata = test)
 roc_qda = roc(test$stroke, qda_pred$posterior[,2], levels = c("0", "1"))
 plot(roc_qda, legacy.axes = TRUE, print.auc = TRUE)
 plot(smooth(roc_qda), col = 4, add = TRUE)
 ```
 
+## RandomForest
 
+```{r}
+rfGrid = data.frame(
+  .mtry = c(2,3,5,6),
+  .splitrule = "gini",
+  .min.node.size = 5
+)
+
+ctrl1 = trainControl(
+    method = "oob",
+    number = 5,
+    verboseIter = TRUE
+)
+
+rf_model = train(
+    stroke ~ .,
+    train,
+    method = "ranger",
+    tuneLength = 3,
+    tuneGrid = rfGrid,
+    trControl = ctrl1
+)
+
+x_test = test %>% dplyr::select(-stroke)
+
+rf_pred = predict(rf_model, newdata = x_test) 
+
+confusionMatrix(rf_pred, factor(test[["stroke"]]), positive = "1")
+
+```
 
