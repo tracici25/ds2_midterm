@@ -106,7 +106,7 @@ stroke_df = stroke_df %>%
 set.seed(2)
 sample_size = floor(0.8 * nrow(stroke_df))
 train = sample_n(stroke_df, size = sample_size)
-test = anti_join(stroke_df, train, by = "id") %>% dplyr::select(gender:stroke)
+test = anti_join(stroke_df, train, by = 'id') %>% dplyr::select(gender:stroke)
 train = train %>% dplyr::select(gender:stroke)
 stroke_df = stroke_df %>% dplyr::select(gender:stroke)
 ```
@@ -120,7 +120,8 @@ summary(glm_fit)
 step_glm_fit = stepAIC(glm_fit, direction = "both", trace = FALSE)
 summary(step_glm_fit)
 
-anova(glm)
+test = test %>% dplyr::select(age, hypertension, heart_disease, avg_glucose_level, stroke)
+train = train %>% dplyr::select(age, hypertension, heart_disease, avg_glucose_level, stroke)
 
 # Confusion Matrix
 prob = predict(step_glm_fit, newdata = test, type = "response")
@@ -129,7 +130,7 @@ pred[prob > 0.5] = "1"
 confusionMatrix(data = as.factor(pred), reference = test$stroke, positive = "1")
 
 # ROC
-glm_prob2 = predict(glm_fit, newdata = test, type = "response")
+glm_prob2 = predict(step_glm_fit, newdata = test, type = "response")
 roc = roc(test$stroke, glm_prob2)
 plot(roc, legacy.axes = TRUE, print.auc = TRUE)
 plot(smooth(roc), col = 4, add = TRUE)
@@ -148,7 +149,7 @@ plot(smooth(roc_lda), col = 4, add = TRUE)
 ## QDA
 
 ```{r}
-qda_fit = qda(stroke ~ age + hypertension + heart_disease + avg_glucose_level, data = train)
+qda_fit = qda(stroke ~., data = train)
 qda_pred = predict(qda_fit, newdata = test)
 roc_qda = roc(test$stroke, qda_pred$posterior[,2], levels = c("0", "1"))
 plot(roc_qda, legacy.axes = TRUE, print.auc = TRUE)
@@ -159,7 +160,7 @@ plot(smooth(roc_qda), col = 4, add = TRUE)
 
 ```{r}
 rfGrid = data.frame(
-  .mtry = c(2,3,5,6),
+  .mtry = c(2,3),
   .splitrule = "gini",
   .min.node.size = 5
 )
@@ -171,8 +172,8 @@ ctrl1 = trainControl(
 )
 
 rf_model = train(
-    stroke ~ .,
-    train,
+    stroke ~ age + hypertension + heart_disease + avg_glucose_level,
+    data = train,
     method = "ranger",
     tuneLength = 3,
     tuneGrid = rfGrid,
