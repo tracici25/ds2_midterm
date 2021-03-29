@@ -144,6 +144,7 @@ lda_pred = predict(lda_fit, newdata = test)
 roc_lda = roc(test$stroke, lda_pred$posterior[,2], levels = c("0", "1"))
 plot(roc_lda, legacy.axes = TRUE, print.auc = TRUE)
 plot(smooth(roc_lda), col = 4, add = TRUE)
+
 ```
 
 ## QDA
@@ -156,6 +157,7 @@ plot(roc_qda, legacy.axes = TRUE, print.auc = TRUE)
 plot(smooth(roc_qda), col = 4, add = TRUE)
 ```
 
+
 ## RandomForest
 
 ```{r}
@@ -166,8 +168,8 @@ rfGrid = data.frame(
 )
 
 ctrl1 = trainControl(
-    method = "oob",
-    number = 5,
+    method = "cv",
+    number = 10,
     verboseIter = TRUE
 )
 
@@ -185,6 +187,11 @@ x_test = test %>% dplyr::select(-stroke)
 rf_pred = predict(rf_model, newdata = x_test) 
 
 confusionMatrix(rf_pred, factor(test[["stroke"]]), positive = "1")
+
+ggplot(rf_model, highlight = TRUE)
+
+rf = randomForest(stroke ~., data = train)
+pred_rf = predict(rf, newdata = test)
 
 ```
 
